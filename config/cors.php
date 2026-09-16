@@ -12,8 +12,7 @@ return [
         'http://localhost:8080', //react front end
         'http://localhost:8081', //react front end (alt port)
         'http://localhost:4173',       // Vite preview
-        'https://yourapp.lovable.app', // Replace with your Lovable URL
-        'https://app.yourdomain.com',  // Replace with your production frontend
+        'https://nv.kfm.co.ug',        // Production frontend (InMotion)
     ],
     'allowed_origins_patterns' => [],
     'allowed_headers'          => ['*'],
