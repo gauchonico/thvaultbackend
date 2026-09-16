@@ -62,7 +62,12 @@ return [
         // doesn't persist or replicate.
         'public' => [
             'driver' => $usingObjectStorage ? 's3' : 'local',
-            'root' => storage_path('app/public'),
+            // "root" is a local filesystem path — meaningless for the s3 driver, and
+            // actively harmful there: Flysystem's S3 adapter treats it as a bucket key
+            // prefix, so leaving this set prepended the whole absolute server path
+            // (e.g. "/var/www/html/storage/app/public") onto every uploaded file's key
+            // and URL. Only apply it when actually on the local driver.
+            'root' => $usingObjectStorage ? '' : storage_path('app/public'),
             // Only fall back to the local "/storage" URL when we're actually on the
             // local driver — on s3, no configured url should leave this null so
             // Flysystem builds a proper bucket URL instead of a broken local path.
