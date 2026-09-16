@@ -57,9 +57,14 @@ return [
         'public' => [
             'driver' => env('FILESYSTEM_DISK', 'local'),
             'root' => storage_path('app/public'),
+            // Only fall back to the local "/storage" URL when we're actually on the
+            // local driver — on s3, no configured url should leave this null so
+            // Flysystem builds a proper bucket URL instead of a broken local path.
             'url' => $laravelCloudDisk['url']
                 ?? env('AWS_URL')
-                ?? rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+                ?? (env('FILESYSTEM_DISK', 'local') === 'local'
+                    ? rtrim(env('APP_URL', 'http://localhost'), '/').'/storage'
+                    : null),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
