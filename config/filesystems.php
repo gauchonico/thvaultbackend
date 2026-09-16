@@ -38,26 +38,27 @@ return [
             'report' => false,
         ],
 
+        // Every uploaded-image accessor/controller in this app addresses this disk by
+        // name ("public"), not the framework default — so it's driven directly by
+        // FILESYSTEM_DISK rather than a separate disk the app never references. Local
+        // dev stays on the "local" driver (disk storage); Laravel Cloud (and any other
+        // ephemeral/scaled host) sets FILESYSTEM_DISK=s3 so uploads land in object
+        // storage instead of a container-local disk that doesn't persist or replicate.
         'public' => [
-            'driver' => 'local',
+            'driver' => env('FILESYSTEM_DISK', 'local'),
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            'url' => env('AWS_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
-        ],
 
-        's3' => [
-            'driver' => 's3',
+            // S3-only keys — ignored when driver is "local".
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
             'bucket' => env('AWS_BUCKET'),
-            'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
-            'report' => false,
         ],
 
     ],
