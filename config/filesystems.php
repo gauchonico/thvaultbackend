@@ -1,5 +1,15 @@
 <?php
 
+// Laravel Cloud injects object-storage credentials as a single JSON-encoded env
+// var rather than discrete AWS_* vars — decode it here so the rest of this file
+// can read it as a normal fallback source. Safe to call this early (before the
+// app container boots): collect()/json_decode() don't need it.
+$laravelCloudDisk = null;
+if ($rawCloudDiskConfig = env('LARAVEL_CLOUD_DISK_CONFIG')) {
+    $disks = json_decode($rawCloudDiskConfig, true) ?: [];
+    $laravelCloudDisk = collect($disks)->firstWhere('is_default', true) ?? ($disks[0] ?? null);
+}
+
 return [
 
     /*
@@ -47,18 +57,23 @@ return [
         'public' => [
             'driver' => env('FILESYSTEM_DISK', 'local'),
             'root' => storage_path('app/public'),
-            'url' => env('AWS_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/storage'),
+            'url' => $laravelCloudDisk['url']
+                ?? env('AWS_URL')
+                ?? rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
 
-            // S3-only keys — ignored when driver is "local".
-            'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
-            'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            // S3-only keys — ignored when driver is "local". Laravel Cloud's disk
+            // config (see above) takes priority; plain AWS_* env vars still work
+            // for any other S3-compatible host (or a manual Laravel Cloud setup).
+            'key' => $laravelCloudDisk['access_key_id'] ?? env('AWS_ACCESS_KEY_ID'),
+            'secret' => $laravelCloudDisk['access_key_secret'] ?? env('AWS_SECRET_ACCESS_KEY'),
+            'region' => $laravelCloudDisk['default_region'] ?? env('AWS_DEFAULT_REGION'),
+            'bucket' => $laravelCloudDisk['bucket'] ?? env('AWS_BUCKET'),
+            'endpoint' => $laravelCloudDisk['endpoint'] ?? env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => $laravelCloudDisk['use_path_style_endpoint']
+                ?? env('AWS_USE_PATH_STYLE_ENDPOINT', false),
         ],
 
     ],
