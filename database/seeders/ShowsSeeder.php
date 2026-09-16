@@ -7,6 +7,7 @@ use App\Models\Genre;
 use App\Models\Show;
 use App\Models\Tag;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class ShowsSeeder extends Seeder
 {
@@ -162,8 +163,13 @@ class ShowsSeeder extends Seeder
                 'backdrop' => "https://picsum.photos/seed/bg{$num}/1920/1080",
             ]);
 
+            // Set slug explicitly rather than relying on Genre's `creating` model event —
+            // DatabaseSeeder runs under WithoutModelEvents, which suppresses that hook.
             $genreIds = collect($genreNames)->map(
-                fn (string $name) => Genre::firstOrCreate(['name' => $name])->id
+                fn (string $name) => Genre::firstOrCreate(
+                    ['name' => $name],
+                    ['slug' => Str::slug($name)]
+                )->id
             );
             $show->genres()->attach($genreIds);
 
