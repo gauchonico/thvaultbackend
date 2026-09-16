@@ -27,6 +27,19 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        // Admin login for the deployed environment. Credentials come from env vars
+        // (set in Laravel Cloud's dashboard) rather than being hardcoded here, since
+        // this seeder runs against real, internet-reachable deployments.
+        User::updateOrCreate(
+            ['email' => env('ADMIN_EMAIL', 'admin@ntvvault.com')],
+            [
+                'name' => 'Admin',
+                'email_verified_at' => now(),
+                'password' => Hash::make(env('ADMIN_PASSWORD', 'password')),
+                'is_admin' => true,
+            ]
+        );
+
         $this->call(PlanSeeder::class);
         $this->call(ShowsSeeder::class);
     }
