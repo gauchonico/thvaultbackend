@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PromoCardController;
 use App\Http\Controllers\Api\V1\ResearcherSearchController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\AdController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -28,6 +29,7 @@ Route::get('/tags',   [TagController::class,   'index']);
 Route::get('/channels', [ChannelController::class, 'index']);
 Route::get('/promo-cards', [PromoCardController::class, 'index']);
 Route::get('/plans', [PlanController::class, 'index']);
+Route::get('/ads/active', [AdController::class, 'active']);
 
 // ─── Authenticated routes ─────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -98,4 +100,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/promo-cards',              [PromoCardController::class, 'store']);
     Route::put('/promo-cards/{promoCard}',   [PromoCardController::class, 'update']);
     Route::delete('/promo-cards/{promoCard}', [PromoCardController::class, 'destroy']);
+
+    Route::get('/ads',            [AdController::class, 'index']);
+    Route::post('/ads',           [AdController::class, 'store']);
+    Route::put('/ads/{ad}',       [AdController::class, 'update']);
+    Route::delete('/ads/{ad}',    [AdController::class, 'destroy']);
 });
