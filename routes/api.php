@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\ResearcherSearchController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\AdController;
+use App\Http\Controllers\Api\ReleaseNoteController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -30,6 +31,7 @@ Route::get('/channels', [ChannelController::class, 'index']);
 Route::get('/promo-cards', [PromoCardController::class, 'index']);
 Route::get('/plans', [PlanController::class, 'index']);
 Route::get('/ads/active', [AdController::class, 'active']);
+Route::get('/release-notes/latest', [ReleaseNoteController::class, 'latest']);
 
 // ─── Authenticated routes ─────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -105,4 +107,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/ads',           [AdController::class, 'store']);
     Route::put('/ads/{ad}',       [AdController::class, 'update']);
     Route::delete('/ads/{ad}',    [AdController::class, 'destroy']);
+
+    Route::get('/release-notes',                    [ReleaseNoteController::class, 'index']);
+    Route::post('/release-notes',                   [ReleaseNoteController::class, 'store']);
+    Route::put('/release-notes/{releaseNote}',      [ReleaseNoteController::class, 'update']);
+    Route::delete('/release-notes/{releaseNote}',   [ReleaseNoteController::class, 'destroy']);
 });
