@@ -9,9 +9,17 @@ use Illuminate\Http\Request;
 class ReleaseNoteController extends Controller
 {
     // GET /api/release-notes/latest (public) — powers the "what's new" modal.
+    // response()->json(null) would serialize to "{}", not JSON null (Symfony
+    // substitutes an empty ArrayObject) — return real null explicitly so
+    // clients can tell "no release note yet" apart from a real one via a
+    // simple falsy/truthy check instead of having to inspect for an id.
     public function latest()
     {
-        return response()->json(ReleaseNote::latest('id')->first());
+        $note = ReleaseNote::latest('id')->first();
+
+        return $note
+            ? response()->json($note)
+            : response('null', 200)->header('Content-Type', 'application/json');
     }
 
     // GET /api/admin/release-notes
