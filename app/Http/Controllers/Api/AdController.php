@@ -11,9 +11,15 @@ use Illuminate\Support\Facades\Storage;
 class AdController extends Controller
 {
     // GET /api/ads/active (public) — the pre-roll ad WatchPage plays, if any.
+    // response()->json(null) would serialize to "{}" (Symfony substitutes an
+    // empty ArrayObject), which is truthy in JS — return real null explicitly.
     public function active()
     {
-        return response()->json(Ad::where('is_active', true)->first());
+        $ad = Ad::where('is_active', true)->first();
+
+        return $ad
+            ? response()->json($ad)
+            : response('null', 200)->header('Content-Type', 'application/json');
     }
 
     // GET /api/admin/ads
