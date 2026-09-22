@@ -22,6 +22,7 @@ class ChannelController extends Controller
     {
         $data = $request->validate([
             'name'       => 'required|string|max:255',
+            'type'       => 'nullable|in:tv,radio',
             'logo'       => 'nullable|image|max:2048',
             'stream_url' => 'nullable|string|max:2048',
             'is_live'    => 'boolean',
@@ -41,6 +42,7 @@ class ChannelController extends Controller
     {
         $data = $request->validate([
             'name'       => 'string|max:255',
+            'type'       => 'nullable|in:tv,radio',
             'logo'       => 'nullable|image|max:2048',
             'stream_url' => 'nullable|string|max:2048',
             'is_live'    => 'boolean',

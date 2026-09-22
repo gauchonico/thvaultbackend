@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 
 class Channel extends Model
 {
-    protected $fillable = ['name', 'slug', 'logo', 'stream_url', 'is_live'];
+    protected $fillable = ['name', 'slug', 'type', 'logo', 'stream_url', 'is_live'];
 
     protected $casts = [
         'is_live' => 'boolean',
