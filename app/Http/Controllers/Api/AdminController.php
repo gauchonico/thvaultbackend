@@ -30,6 +30,7 @@ class AdminController extends Controller
             'description'    => 'nullable|string',
             'video_url'      => 'nullable|string',
             'released_at'    => 'nullable|date',
+            'aired_at'       => 'nullable|date',
         ]);
 
         if ($request->hasFile('thumbnail')) {
@@ -53,6 +54,7 @@ class AdminController extends Controller
             'description'    => 'nullable|string',
             'video_url'      => 'nullable|string',
             'released_at'    => 'nullable|date',
+            'aired_at'       => 'nullable|date',
         ]);
 
         $oldThumbnail = $episode->getRawOriginal('thumbnail');

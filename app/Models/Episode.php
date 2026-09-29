@@ -11,11 +11,12 @@ class Episode extends Model
 {
     protected $fillable = [
         'show_id', 'title', 'season', 'episode_number',
-        'duration', 'thumbnail', 'description', 'video_url', 'released_at',
+        'duration', 'thumbnail', 'description', 'video_url', 'released_at', 'aired_at',
     ];
 
     protected $casts = [
         'released_at' => 'date:Y-m-d',
+        'aired_at'    => 'date:Y-m-d',
     ];
 
     /**
