@@ -4,7 +4,9 @@ namespace App\Models;
  
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
- 
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
 class Episode extends Model
 {
     protected $fillable = [
@@ -15,7 +17,17 @@ class Episode extends Model
     protected $casts = [
         'released_at' => 'date:Y-m-d',
     ];
- 
+
+    /**
+     * Uploaded thumbnails are stored as relative paths (e.g. "thumbnails/xyz.jpg"),
+     * while ones pulled from NTV VOD / YouTube are full URLs. Normalize both.
+     */
+    public function getThumbnailAttribute(?string $value): ?string
+    {
+        if (!$value) return null;
+        return Str::startsWith($value, ['http://', 'https://']) ? $value : Storage::disk('public')->url($value);
+    }
+
     public function show(): BelongsTo
     {
         return $this->belongsTo(Show::class);
