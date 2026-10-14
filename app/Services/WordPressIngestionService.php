@@ -125,6 +125,18 @@ class WordPressIngestionService
             return 0;
         }
 
+        // Re-runs skip posts whose text is already embedded, so an ingest interrupted by
+        // a rate limit can be resumed without spending quota on finished posts. After
+        // switching EMBEDDINGS_PROVIDER, truncate searchable_chunks first: old vectors
+        // would otherwise be kept.
+        $existing = SearchableChunk::where('external_id', 'like', "{$brandSlug}:{$post['id']}:%")
+            ->whereNotNull('embedding')
+            ->orderBy('chunk_index')
+            ->pluck('chunk_content', 'chunk_index');
+        if ($existing->count() === count($chunks) && $existing->values()->all() === array_values($chunks)) {
+            return 0;
+        }
+
         $embeddings = $this->ai->embedBatch($chunks);
 
         $metadata = [

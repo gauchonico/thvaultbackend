@@ -16,8 +16,15 @@ class ResearcherSearchController extends Controller
     // How many most-recent candidate chunks to brute-force score per request.
     // Phase 1 ceiling — move to Meilisearch/pgvector before the corpus outgrows this.
     private const MAX_CANDIDATES = 4000;
-    private const TOP_N_RESULTS = 30;
-    private const SUMMARY_PASSAGE_COUNT = 5;
+    // Closest articles (one best-matching chunk each) handed to the AI to judge.
+    private const CANDIDATE_ARTICLES = 20;
+    // Below this cosine score a Gemini match is noise for any query (measured: unrelated
+    // articles land at 0.54–0.65, real answers 0.60–0.75), so don't even send it.
+    private const MIN_SIMILARITY = 0.5;
+    // Without the AI judge, keep only results this close to the best match.
+    private const FALLBACK_MARGIN = 0.06;
+    private const FALLBACK_MAX_RESULTS = 10;
+    private const PASSAGE_WORDS = 80;
 
     public function __construct(private readonly AiClient $ai)
     {
@@ -66,32 +73,45 @@ class ResearcherSearchController extends Controller
             ->limit(self::MAX_CANDIDATES)
             ->get();
 
+        // Best chunk per article, so one story never fills the list several times over.
         $scored = $candidates
             ->map(fn (SearchableChunk $chunk) => [
                 'chunk' => $chunk,
                 'score' => $chunk->similarityTo($queryVector),
             ])
             ->sortByDesc('score')
-            ->take(self::TOP_N_RESULTS)
+            ->unique(fn ($item) => $item['chunk']->source_url ?: $item['chunk']->id)
+            ->filter(fn ($item) => $item['score'] >= self::MIN_SIMILARITY)
+            ->take(self::CANDIDATE_ARTICLES)
             ->values();
 
-        $results = $scored->map(fn ($item) => $this->formatResult($item['chunk'], $item['score']));
-
-        // Off by default for the demo — local (Ollama) synthesis takes 20s+ on CPU,
-        // which risks upstream proxy timeouts. Toggle via RESEARCHER_SYNTHESIS_ENABLED.
-        $summary = null;
-        if (config('services.researcher.synthesis_enabled')) {
-            // Truncate what goes into the prompt (not the displayed excerpt) — 5 full
-            // 300-word chunks makes for a very slow local-model generation.
-            $summary = $this->ai->synthesize(
+        $judged = null;
+        if (config('services.researcher.synthesis_enabled') && $scored->isNotEmpty()) {
+            $judged = $this->ai->rankAndSummarize(
                 $data['query'],
-                $results->take(self::SUMMARY_PASSAGE_COUNT)->map(fn ($r) => [
-                    'brand' => $r['brand_name'],
-                    'date'  => $r['published_at'],
-                    'text'  => Str::words($r['excerpt'], 60),
+                $scored->map(fn ($item) => [
+                    'title' => $item['chunk']->source_title,
+                    'brand' => $item['chunk']->brand_name,
+                    'date'  => optional($item['chunk']->published_at)->toDateString(),
+                    'text'  => Str::words($item['chunk']->chunk_content, self::PASSAGE_WORDS),
                 ])->all()
             );
         }
+
+        if ($judged !== null) {
+            // Only what the AI judged relevant, most useful first.
+            $kept = collect($judged['relevant'])->map(fn ($i) => $scored[$i]);
+            $summary = $judged['summary'];
+        } else {
+            // AI off or failed: keep only results close to the best match.
+            $best = $scored->first()['score'] ?? 0;
+            $kept = $scored
+                ->filter(fn ($item) => $item['score'] >= $best - self::FALLBACK_MARGIN)
+                ->take(self::FALLBACK_MAX_RESULTS);
+            $summary = null;
+        }
+
+        $results = $kept->map(fn ($item) => $this->formatResult($item['chunk'], $item['score']))->values();
 
         return response()->json([
             'query'         => $data['query'],
