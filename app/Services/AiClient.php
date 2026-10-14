@@ -7,7 +7,8 @@ use RuntimeException;
 
 /**
  * Embeddings + chat completion client, provider-switchable via EMBEDDINGS_PROVIDER
- * ('openai' or 'ollama'). Ollama runs locally (no API key, no per-call cost) — the
+ * ('openai', 'gemini' or 'ollama'). Gemini (Google AI Studio) has a free tier that
+ * needs no card, which makes it the hosted option for demos. Ollama runs locally (no API key, no per-call cost) — the
  * default for Phase 1 while OpenAI billing isn't set up. Swap back to OpenAI later
  * by changing one env var; nothing else in the app needs to change, since chunk
  * embeddings are ingested fresh per-provider (dimensions differ: 1536 vs 768).
@@ -20,6 +21,12 @@ class AiClient
     private string $openAiKey;
     private string $openAiEmbeddingModel;
     private string $openAiChatModel;
+
+    // Gemini
+    private string $geminiKey;
+    private string $geminiEmbeddingModel;
+    private string $geminiChatModel;
+    private int $geminiDimensions;
 
     // Ollama
     private string $ollamaBaseUrl;
@@ -34,6 +41,11 @@ class AiClient
         $this->openAiEmbeddingModel = (string) config('services.openai.embedding_model', 'text-embedding-3-small');
         $this->openAiChatModel = (string) config('services.openai.chat_model', 'gpt-4o-mini');
 
+        $this->geminiKey = (string) config('services.gemini.key');
+        $this->geminiEmbeddingModel = (string) config('services.gemini.embedding_model', 'gemini-embedding-001');
+        $this->geminiChatModel = (string) config('services.gemini.chat_model', 'gemini-flash-lite-latest');
+        $this->geminiDimensions = (int) config('services.gemini.dimensions', 768);
+
         $this->ollamaBaseUrl = rtrim((string) config('services.ollama.base_url', 'http://localhost:11434'), '/');
         $this->ollamaEmbeddingModel = (string) config('services.ollama.embedding_model', 'nomic-embed-text');
         $this->ollamaChatModel = (string) config('services.ollama.chat_model', 'llama3.2:3b');
@@ -46,7 +58,11 @@ class AiClient
      */
     public function hasApiKey(): bool
     {
-        return $this->provider === 'ollama' || $this->openAiKey !== '';
+        return match ($this->provider) {
+            'ollama' => true,
+            'gemini' => $this->geminiKey !== '',
+            default  => $this->openAiKey !== '',
+        };
     }
 
     public function providerName(): string
@@ -58,20 +74,23 @@ class AiClient
      * @param string[] $texts
      * @return array<int, float[]>
      */
-    public function embedBatch(array $texts): array
+    public function embedBatch(array $texts, bool $isQuery = false): array
     {
         if (empty($texts)) {
             return [];
         }
 
-        return $this->provider === 'ollama'
-            ? $this->embedBatchOllama($texts)
-            : $this->embedBatchOpenAi($texts);
+        return match ($this->provider) {
+            'ollama' => $this->embedBatchOllama($texts),
+            'gemini' => $this->embedBatchGemini($texts, $isQuery),
+            default  => $this->embedBatchOpenAi($texts),
+        };
     }
 
+    /** Embeds a search query (Gemini tunes query and document vectors differently). */
     public function embed(string $text): array
     {
-        return $this->embedBatch([$text])[0] ?? [];
+        return $this->embedBatch([$text], true)[0] ?? [];
     }
 
     /**
@@ -95,9 +114,11 @@ class AiClient
         $userPrompt = "Query: \"{$query}\"\n\nPassages:\n{$context}";
 
         try {
-            return $this->provider === 'ollama'
-                ? $this->chatOllama($systemPrompt, $userPrompt)
-                : $this->chatOpenAi($systemPrompt, $userPrompt);
+            return match ($this->provider) {
+                'ollama' => $this->chatOllama($systemPrompt, $userPrompt),
+                'gemini' => $this->chatGemini($systemPrompt, $userPrompt),
+                default  => $this->chatOpenAi($systemPrompt, $userPrompt),
+            };
         } catch (\Throwable $e) {
             report($e);
             return null;
@@ -148,6 +169,75 @@ class AiClient
         }
 
         return $response->json('choices.0.message.content');
+    }
+
+    // ─── Gemini ─────────────────────────────────────────────────────────────
+
+    private function embedBatchGemini(array $texts, bool $isQuery): array
+    {
+        if ($this->geminiKey === '') {
+            throw new RuntimeException('GOOGLE_API_KEY is not configured.');
+        }
+
+        $model = "models/{$this->geminiEmbeddingModel}";
+        $vectors = [];
+
+        // batchEmbedContents accepts at most 100 texts per call.
+        foreach (array_chunk($texts, 100) as $batch) {
+            $response = Http::withHeaders(['x-goog-api-key' => $this->geminiKey])
+                ->connectTimeout(5)
+                ->timeout(60)
+                ->post("https://generativelanguage.googleapis.com/v1beta/{$model}:batchEmbedContents", [
+                    'requests' => array_map(fn ($text) => [
+                        'model' => $model,
+                        'content' => ['parts' => [['text' => $text]]],
+                        'taskType' => $isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
+                        'outputDimensionality' => $this->geminiDimensions,
+                    ], $batch),
+                ]);
+
+            if ($response->failed()) {
+                throw new RuntimeException('Gemini embeddings request failed: ' . $response->body());
+            }
+
+            foreach ($response->json('embeddings', []) as $embedding) {
+                $vectors[] = $this->normalize($embedding['values'] ?? []);
+            }
+        }
+
+        return $vectors;
+    }
+
+    private function chatGemini(string $systemPrompt, string $userPrompt): ?string
+    {
+        // Same fail-fast reasoning as Ollama below: a missing summary is fine, a
+        // proxy-dropped search is not. Free-tier Flash answers in ~10s.
+        $response = Http::withHeaders(['x-goog-api-key' => $this->geminiKey])
+            ->connectTimeout(5)
+            ->timeout(25)
+            ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->geminiChatModel}:generateContent", [
+                'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
+                'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
+                'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 400],
+            ]);
+
+        if ($response->failed()) {
+            report(new RuntimeException('Gemini chat request failed: ' . $response->body()));
+            return null;
+        }
+
+        return $response->json('candidates.0.content.parts.0.text');
+    }
+
+    /**
+     * Gemini only unit-normalizes full-size vectors; reduced ones (768) must be
+     * normalized here so SearchableChunk::similarityTo's dot product stays cosine.
+     */
+    private function normalize(array $vector): array
+    {
+        $norm = sqrt(array_sum(array_map(fn ($v) => $v * $v, $vector)));
+
+        return $norm > 0 ? array_map(fn ($v) => $v / $norm, $vector) : $vector;
     }
 
     // ─── Ollama ─────────────────────────────────────────────────────────────

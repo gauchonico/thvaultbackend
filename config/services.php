@@ -41,7 +41,14 @@ return [
         'chat_model' => env('OPENAI_CHAT_MODEL', 'gpt-4o-mini'),
     ],
 
-    // Researcher Portal embeddings/chat provider: 'openai' or 'ollama'.
+    'gemini' => [
+        'key' => env('GOOGLE_API_KEY'),
+        'embedding_model' => env('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'),
+        'chat_model' => env('GEMINI_CHAT_MODEL', 'gemini-flash-lite-latest'),
+        'dimensions' => env('GEMINI_EMBEDDING_DIMENSIONS', 768),
+    ],
+
+    // Researcher Portal embeddings/chat provider: 'openai', 'gemini' or 'ollama'.
     'embeddings' => [
         'provider' => env('EMBEDDINGS_PROVIDER', 'openai'),
     ],
