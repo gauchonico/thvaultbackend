@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -94,35 +95,61 @@ class AiClient
     }
 
     /**
-     * Ask the chat model for a short synthesis of the given passages.
-     * Returns null (never throws) on failure — a summary is a nice-to-have,
-     * not something that should break the whole search request.
+     * Embeddings rank passages by shared words and topic, not by what the question
+     * means, so near-misses score almost as high as real answers. This asks the chat
+     * model which passages genuinely answer the query and summarises only those, in
+     * one call. Returns null (never throws) on failure so search can fall back to
+     * similarity alone.
+     *
+     * @param array<int, array{title: string, brand: string, date: ?string, text: string}> $passages
+     * @return array{relevant: int[], summary: ?string}|null
      */
-    public function synthesize(string $query, array $passages): ?string
+    public function rankAndSummarize(string $query, array $passages): ?array
     {
         if (empty($passages)) {
-            return null;
+            return ['relevant' => [], 'summary' => null];
         }
 
         $context = collect($passages)
-            ->map(fn ($p, $i) => "[{$i}] ({$p['brand']}, {$p['date']}) {$p['text']}")
+            ->map(fn ($p, $i) => "[{$i}] {$p['title']} ({$p['brand']}, {$p['date']})\n{$p['text']}")
             ->implode("\n\n");
 
-        $systemPrompt = 'You are a research assistant summarizing news archive search results. '
-            . 'Write exactly two sentences synthesizing the passages provided, in a neutral, '
-            . 'factual tone. Do not fabricate details not present in the passages.';
-        $userPrompt = "Query: \"{$query}\"\n\nPassages:\n{$context}";
+        $systemPrompt = 'You are a research assistant for a Ugandan news archive. '
+            . 'Decide which numbered passages genuinely help answer the user\'s question. Judge by meaning: '
+            . 'a passage that only shares some words or a broad topic with the question is NOT relevant. '
+            . 'Then write exactly two neutral, factual sentences answering the question, using only the '
+            . 'relevant passages and never adding details they do not contain. '
+            . 'Respond with JSON only, in the form {"relevant": [passage numbers, most useful first], "summary": "..."}. '
+            . 'If no passage is relevant, respond {"relevant": [], "summary": null}.';
+        $userPrompt = "Question: \"{$query}\"\n\nPassages:\n{$context}";
 
         try {
-            return match ($this->provider) {
-                'ollama' => $this->chatOllama($systemPrompt, $userPrompt),
-                'gemini' => $this->chatGemini($systemPrompt, $userPrompt),
-                default  => $this->chatOpenAi($systemPrompt, $userPrompt),
+            $raw = match ($this->provider) {
+                'ollama' => $this->chatOllama($systemPrompt, $userPrompt, true),
+                'gemini' => $this->chatGemini($systemPrompt, $userPrompt, true),
+                default  => $this->chatOpenAi($systemPrompt, $userPrompt, true),
             };
         } catch (\Throwable $e) {
             report($e);
             return null;
         }
+
+        // Some models wrap JSON in a ```json fence despite being asked not to.
+        $data = json_decode(preg_replace('/^\s*```(?:json)?|```\s*$/', '', (string) $raw), true);
+        if (!is_array($data) || !is_array($data['relevant'] ?? null)) {
+            report(new RuntimeException('Research ranking returned unusable output: ' . Str::limit((string) $raw, 300)));
+            return null;
+        }
+
+        $relevant = collect($data['relevant'])
+            ->filter(fn ($i) => is_numeric($i) && isset($passages[(int) $i]))
+            ->map(fn ($i) => (int) $i)
+            ->unique()
+            ->values()
+            ->all();
+        $summary = is_string($data['summary'] ?? null) ? trim($data['summary']) : '';
+
+        return ['relevant' => $relevant, 'summary' => $relevant && $summary !== '' ? $summary : null];
     }
 
     // ─── OpenAI ─────────────────────────────────────────────────────────────
@@ -150,13 +177,14 @@ class AiClient
         return array_map(fn ($item) => $item['embedding'], $data);
     }
 
-    private function chatOpenAi(string $systemPrompt, string $userPrompt): ?string
+    private function chatOpenAi(string $systemPrompt, string $userPrompt, bool $json = false): ?string
     {
         $response = Http::withToken($this->openAiKey)
             ->timeout(30)
             ->post('https://api.openai.com/v1/chat/completions', [
                 'model' => $this->openAiChatModel,
                 'temperature' => 0.2,
+                ...($json ? ['response_format' => ['type' => 'json_object']] : []),
                 'messages' => [
                     ['role' => 'system', 'content' => $systemPrompt],
                     ['role' => 'user', 'content' => $userPrompt],
@@ -184,17 +212,28 @@ class AiClient
 
         // batchEmbedContents accepts at most 100 texts per call.
         foreach (array_chunk($texts, 100) as $batch) {
-            $response = Http::withHeaders(['x-goog-api-key' => $this->geminiKey])
-                ->connectTimeout(5)
-                ->timeout(60)
-                ->post("https://generativelanguage.googleapis.com/v1beta/{$model}:batchEmbedContents", [
-                    'requests' => array_map(fn ($text) => [
-                        'model' => $model,
-                        'content' => ['parts' => [['text' => $text]]],
-                        'taskType' => $isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
-                        'outputDimensionality' => $this->geminiDimensions,
-                    ], $batch),
-                ]);
+            // The free tier allows 100 texts a minute. On a 429, wait the delay Google
+            // asks for and retry, so a long ingest crawls through instead of failing.
+            // Searches are single texts and rarely hit this; a few retries cap the wait.
+            for ($attempt = 1; ; $attempt++) {
+                $response = Http::withHeaders(['x-goog-api-key' => $this->geminiKey])
+                    ->connectTimeout(5)
+                    ->timeout(60)
+                    ->post("https://generativelanguage.googleapis.com/v1beta/{$model}:batchEmbedContents", [
+                        'requests' => array_map(fn ($text) => [
+                            'model' => $model,
+                            'content' => ['parts' => [['text' => $text]]],
+                            'taskType' => $isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
+                            'outputDimensionality' => $this->geminiDimensions,
+                        ], $batch),
+                    ]);
+
+                if ($response->status() !== 429 || $attempt >= ($isQuery ? 1 : 5)) {
+                    break;
+                }
+
+                sleep($this->geminiRetryDelay($response));
+            }
 
             if ($response->failed()) {
                 throw new RuntimeException('Gemini embeddings request failed: ' . $response->body());
@@ -208,7 +247,7 @@ class AiClient
         return $vectors;
     }
 
-    private function chatGemini(string $systemPrompt, string $userPrompt): ?string
+    private function chatGemini(string $systemPrompt, string $userPrompt, bool $json = false): ?string
     {
         // Same fail-fast reasoning as Ollama below: a missing summary is fine, a
         // proxy-dropped search is not. Free-tier Flash answers in ~10s.
@@ -218,7 +257,11 @@ class AiClient
             ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->geminiChatModel}:generateContent", [
                 'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
                 'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
-                'generationConfig' => ['temperature' => 0.2, 'maxOutputTokens' => 400],
+                'generationConfig' => [
+                    'temperature' => 0.2,
+                    'maxOutputTokens' => $json ? 800 : 400,
+                    ...($json ? ['responseMimeType' => 'application/json'] : []),
+                ],
             ]);
 
         if ($response->failed()) {
@@ -227,6 +270,15 @@ class AiClient
         }
 
         return $response->json('candidates.0.content.parts.0.text');
+    }
+
+    /** Seconds to wait before retrying a 429, from Google's RetryInfo ("21.8s"), plus a margin. */
+    private function geminiRetryDelay(\Illuminate\Http\Client\Response $response): int
+    {
+        $delay = collect($response->json('error.details', []))
+            ->firstWhere('@type', 'type.googleapis.com/google.rpc.RetryInfo')['retryDelay'] ?? '30s';
+
+        return min(65, (int) ceil((float) $delay) + 2);
     }
 
     /**
@@ -270,7 +322,7 @@ class AiClient
         return $embeddings;
     }
 
-    private function chatOllama(string $systemPrompt, string $userPrompt): ?string
+    private function chatOllama(string $systemPrompt, string $userPrompt, bool $json = false): ?string
     {
         // Fail fast rather than risk an upstream proxy (nginx/Herd) timing out the
         // connection first — a missing AI summary degrades gracefully; a dropped
@@ -280,7 +332,8 @@ class AiClient
             'model' => $this->ollamaChatModel,
             'stream' => false,
             'keep_alive' => '30m',
-            'options' => ['temperature' => 0.2, 'num_predict' => 120],
+            'options' => ['temperature' => 0.2, 'num_predict' => $json ? 500 : 120],
+            ...($json ? ['format' => 'json'] : []),
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $userPrompt],
