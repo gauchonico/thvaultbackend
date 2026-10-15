@@ -27,6 +27,11 @@ class SubscriptionController extends Controller
             'plan_slug' => ['required', 'exists:plans,slug'],
         ]);
 
+        // Once payments are on, a plan is only activated by a confirmed payment.
+        if (\App\Payments\PaymentService::enabled()) {
+            return response()->json(['message' => 'Choose a plan and pay with mobile money to subscribe.'], 409);
+        }
+
         $plan = Plan::where('slug', $data['plan_slug'])->firstOrFail();
         $user = $request->user();
 

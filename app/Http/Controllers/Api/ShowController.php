@@ -40,6 +40,9 @@ class ShowController extends Controller
 
         $shows = $query->latest()->get();
 
+        // Public route, but the site sends the login token when there is one.
+        Show::applyAccess($shows, auth('sanctum')->user());
+
         if ($request->user()) {
             $userId = $request->user()->id;
             $shows = $shows->map(function ($show) use ($userId) {
@@ -60,6 +63,7 @@ class ShowController extends Controller
     {
         // Eager-load everything the detail page needs
         $show->load(['episodes', 'genres', 'tags', 'channel']);
+        Show::applyAccess($show, auth('sanctum')->user());
 
         // Attach progress if logged in (matches your index() behavior)
         if ($request->user()) {
@@ -77,6 +81,7 @@ class ShowController extends Controller
     // POST /api/shows
     public function store(Request $request)
     {
+        $this->blankPricesToNull($request);
         $data = $request->validate([
             'title'       => 'required|string',
             'description' => 'required|string',
@@ -94,6 +99,8 @@ class ShowController extends Controller
             'air_end_time'   => 'nullable|date_format:H:i',
             'type'           => 'nullable|in:show,podcast',
             'channel_id'     => 'nullable|exists:channels,id',
+            'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
+            'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
         ]);
 
         // Handle File Uploads
@@ -118,6 +125,7 @@ class ShowController extends Controller
     // PUT /api/shows/{id}
     public function update(Request $request, Show $show)
     {
+        $this->blankPricesToNull($request);
         $data = $request->validate([
             'title'       => 'string',
             'description' => 'string',
@@ -135,6 +143,8 @@ class ShowController extends Controller
             'air_end_time'   => 'nullable|date_format:H:i',
             'type'           => 'nullable|in:show,podcast',
             'channel_id'     => 'nullable|exists:channels,id',
+            'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
+            'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
         ]);
 
         $oldPoster   = $show->getRawOriginal('poster');
@@ -166,5 +176,15 @@ class ShowController extends Controller
         $show->delete();
 
         return response()->json(['message' => 'Show deleted']);
+    }
+
+    // The admin form sends an empty field to clear a price; store that as "not for sale".
+    private function blankPricesToNull(Request $request): void
+    {
+        foreach (['rent_price_ugx', 'buy_price_ugx'] as $field) {
+            if ($request->has($field) && trim((string) $request->input($field)) === '') {
+                $request->merge([$field => null]);
+            }
+        }
     }
 }

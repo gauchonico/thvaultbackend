@@ -15,12 +15,54 @@ class Show extends Model
         'title', 'description', 'poster', 'backdrop', 'trailer_url',
         'year', 'rating', 'seasons',
         'air_days', 'air_start_time', 'air_end_time',
-        'type', 'channel_id',
+        'type', 'channel_id', 'rent_price_ugx', 'buy_price_ugx',
     ];
 
     protected $casts = [
         'air_days' => 'array',
+        'rent_price_ugx' => 'integer',
+        'buy_price_ugx' => 'integer',
     ];
+
+    public function isForSale(): bool
+    {
+        return (bool) ($this->rent_price_ugx || $this->buy_price_ugx);
+    }
+
+    /**
+     * For titles on sale, strip episode video links unless $user may watch, and attach
+     * `access` so the page knows whether to show Play or Rent/Buy. Admins always see
+     * the links (the admin console edits episodes through the same endpoints).
+     *
+     * @param \Illuminate\Support\Collection<int, Show>|Show $shows
+     */
+    public static function applyAccess($shows, ?User $user): void
+    {
+        $shows = collect($shows instanceof Show ? [$shows] : $shows)->filter->isForSale();
+        if ($shows->isEmpty()) {
+            return;
+        }
+
+        $purchases = $user
+            ? Purchase::active()->where('user_id', $user->id)->whereIn('show_id', $shows->pluck('id'))
+                ->orderByRaw("type = 'buy' desc")->orderByDesc('expires_at')->get()->unique('show_id')->keyBy('show_id')
+            : collect();
+
+        foreach ($shows as $show) {
+            $purchase = $purchases->get($show->id);
+            $canWatch = (bool) ($purchase || $user?->is_admin);
+
+            $show->setAttribute('access', [
+                'has_access' => $canWatch,
+                'type'       => $purchase?->type ?? ($user?->is_admin ? 'admin' : null),
+                'expires_at' => $purchase?->expires_at?->toIso8601String(),
+            ]);
+
+            if (!$canWatch && $show->relationLoaded('episodes')) {
+                $show->episodes->each(fn ($ep) => $ep->setAttribute('video_url', null));
+            }
+        }
+    }
 
     /**
      * Uploaded files are stored as relative paths (e.g. "posters/xyz.jpg").

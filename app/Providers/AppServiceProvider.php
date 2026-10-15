@@ -11,7 +11,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(\App\Payments\PaymentGateway::class, fn () => match (config('payments.driver')) {
+            'pesapal' => throw new \RuntimeException('The Pesapal gateway has not been built yet.'),
+            default   => new \App\Payments\FakeGateway(),
+        });
     }
 
     /**
