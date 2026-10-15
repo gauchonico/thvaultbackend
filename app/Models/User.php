@@ -32,10 +32,15 @@ class User extends Authenticatable
     }
 
     // Most recent subscription still marked active — null if the user has never picked a plan.
+    // With payments on, each payment buys a fixed period, so a lapsed ends_at no longer
+    // counts. Without payments, plans never lapse (unchanged behaviour).
     public function activeSubscription()
     {
         return $this->hasOne(Subscription::class)
             ->where('status', 'active')
+            ->when(\App\Payments\PaymentService::enabled(), fn ($q) => $q->where(
+                fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', now())
+            ))
             ->latestOfMany();
     }
 

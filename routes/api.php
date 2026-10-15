@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\AdController;
 use App\Http\Controllers\Api\ReleaseNoteController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\AdminSubscriptionController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -32,6 +34,10 @@ Route::get('/promo-cards', [PromoCardController::class, 'index']);
 Route::get('/plans', [PlanController::class, 'index']);
 Route::get('/ads/active', [AdController::class, 'active']);
 Route::get('/release-notes/latest', [ReleaseNoteController::class, 'latest']);
+
+// Payments: public config + the provider's webhook (it can't send our auth token).
+Route::get('/payments/config', [PaymentController::class, 'config']);
+Route::match(['get', 'post'], '/payments/notify/{provider}', [PaymentController::class, 'notify']);
 
 // ─── Authenticated routes ─────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -57,6 +63,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/subscriptions/current', [SubscriptionController::class, 'current']);
     Route::post('/subscriptions',        [SubscriptionController::class, 'store']);
 
+    // Mobile money payments (only live when PAYMENTS_DRIVER isn't 'none')
+    Route::post('/payments',             [PaymentController::class, 'store']);
+    Route::get('/payments/{reference}',  [PaymentController::class, 'show']);
+
     // Researcher Portal — gated behind auth since each search costs an OpenAI call.
     Route::prefix('v1/researcher')->group(function () {
         Route::post('/search', [ResearcherSearchController::class, 'search']);
@@ -70,6 +80,16 @@ Route::middleware('auth:sanctum')->group(function () {
 // Admin routes
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     Route::get('/users',                          [AdminController::class, 'users']);
+
+    // Subscribers and payments
+    Route::get('/subscriptions/summary',              [AdminSubscriptionController::class, 'summary']);
+    Route::get('/subscriptions',                      [AdminSubscriptionController::class, 'index']);
+    Route::post('/subscriptions/grant',               [AdminSubscriptionController::class, 'grant']);
+    Route::post('/subscriptions/{subscription}/extend', [AdminSubscriptionController::class, 'extend']);
+    Route::put('/subscriptions/{subscription}',       [AdminSubscriptionController::class, 'update']);
+    Route::get('/payments',                           [AdminSubscriptionController::class, 'payments']);
+    Route::get('/sales',                              [AdminSubscriptionController::class, 'sales']);
+    Route::post('/payments/{payment}/refresh',        [AdminSubscriptionController::class, 'refreshPayment']);
     Route::post('/episodes/{showId}',             [AdminController::class, 'addEpisode']);
     Route::put('/episodes/{episode}',             [AdminController::class, 'updateEpisode']);
     Route::delete('/episodes/{episode}',          [AdminController::class, 'deleteEpisode']);
