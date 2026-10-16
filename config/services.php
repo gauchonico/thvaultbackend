@@ -41,6 +41,11 @@ return [
         'chat_model' => env('OPENAI_CHAT_MODEL', 'gpt-4o-mini'),
     ],
 
+    // Admin episode auto-fill (upload date + duration). Accepts the env name either way.
+    'youtube' => [
+        'key' => env('YOUTUBE_API_KEY', env('YOUTUB_API_KEY')),
+    ],
+
     'gemini' => [
         'key' => env('GOOGLE_API_KEY'),
         'embedding_model' => env('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'),

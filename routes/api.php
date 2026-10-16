@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\AdController;
 use App\Http\Controllers\Api\ReleaseNoteController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminSubscriptionController;
+use App\Http\Controllers\Api\VideoMetaController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -80,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
 // Admin routes
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     Route::get('/users',                          [AdminController::class, 'users']);
+    Route::get('/video-meta',                     [VideoMetaController::class, 'show']);
 
     // Subscribers and payments
     Route::get('/subscriptions/summary',              [AdminSubscriptionController::class, 'summary']);

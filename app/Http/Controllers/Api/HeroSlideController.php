@@ -20,7 +20,12 @@ class HeroSlideController extends Controller
             ->orderBy('order')
             ->take(5) // Increased to 5 for a better hero experience
             ->get()
-            ->pluck('show');
+            ->pluck('show')
+            ->filter()
+            ->values();
+
+        // Same rent/buy rules as /api/shows: prices + access, video links only for buyers.
+        \App\Models\Show::applyAccess($slides, auth('sanctum')->user());
 
         return response()->json($slides);
     }
