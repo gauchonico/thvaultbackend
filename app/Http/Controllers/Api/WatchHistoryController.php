@@ -20,7 +20,17 @@ class WatchHistoryController extends Controller
             ->get()
             ->unique('show_id')   // one entry per show (latest episode)
             ->values();
- 
+
+        // A lapsed rental must not keep playing from "Continue watching": hide the
+        // episode link (and mark the show locked) unless the user can still watch.
+        $shows = $history->pluck('show')->filter();
+        \App\Models\Show::applyAccess($shows, $request->user());
+        $history->each(function ($item) {
+            if ($item->show?->access && !$item->show->access['has_access'] && $item->episode) {
+                $item->episode->setAttribute('video_url', null);
+            }
+        });
+
         return response()->json($history);
     }
  

@@ -14,7 +14,11 @@ class WatchlistController extends Controller
             ->where('user_id', $request->user()->id)
             ->latest()
             ->get()
-            ->pluck('show');
+            ->pluck('show')
+            ->filter()
+            ->values();
+
+        \App\Models\Show::applyAccess($list, $request->user());
 
         return response()->json($list);
     }
