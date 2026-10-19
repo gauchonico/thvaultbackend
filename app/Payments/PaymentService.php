@@ -129,6 +129,9 @@ class PaymentService
                 ->addHours(config('payments.rental_hours'));
         }
 
+        // Bought or rented titles land in My List, so they're easy to find again.
+        \App\Models\Watchlist::firstOrCreate(['user_id' => $payment->user_id, 'show_id' => $payment->show_id]);
+
         return Purchase::create([
             'user_id'    => $payment->user_id,
             'show_id'    => $payment->show_id,

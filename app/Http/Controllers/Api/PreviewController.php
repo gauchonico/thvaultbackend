@@ -40,11 +40,11 @@ class PreviewController extends Controller
             $gap = $usage->last_beat_at ? $usage->last_beat_at->diffInSeconds(now()) : null;
             $charge = $gap !== null && $gap <= self::MAX_GAP_SECONDS ? (int) min($gap, self::MAX_CHARGE_SECONDS) : 0;
 
-            $usage->seconds_used = min(config('content.preview_seconds'), $usage->seconds_used + $charge);
+            $usage->seconds_used = min(\App\Models\Setting::previewSeconds(), $usage->seconds_used + $charge);
             $usage->last_beat_at = now();
             $usage->save();
 
-            return max(0, config('content.preview_seconds') - $usage->seconds_used);
+            return max(0, \App\Models\Setting::previewSeconds() - $usage->seconds_used);
         });
 
         return response()->json(['counting' => true, 'seconds_left' => $left]);

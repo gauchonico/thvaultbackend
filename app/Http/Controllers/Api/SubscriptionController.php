@@ -41,6 +41,9 @@ class SubscriptionController extends Controller
         ]);
 
         $plan = Plan::where('slug', $data['plan_slug'])->firstOrFail();
+        if (!$plan->is_active) {
+            return response()->json(['message' => "That plan isn't available any more. Please choose another."], 422);
+        }
 
         // Once payments are on, a paid plan is only activated by a confirmed payment.
         // Freemium never needs one.

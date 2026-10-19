@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminSubscriptionController;
 use App\Http\Controllers\Api\VideoMetaController;
 use App\Http\Controllers\Api\PreviewController;
+use App\Http\Controllers\Api\AdminPlanController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -86,6 +87,14 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     Route::get('/users',                          [AdminController::class, 'users']);
     Route::get('/video-meta',                     [VideoMetaController::class, 'show']);
+
+    // Plans and Freemium settings
+    Route::get('/plans',                      [AdminPlanController::class, 'index']);
+    Route::post('/plans',                     [AdminPlanController::class, 'store']);
+    Route::put('/plans/reorder',              [AdminPlanController::class, 'reorder']);
+    Route::put('/plans/{plan}',               [AdminPlanController::class, 'update']);
+    Route::get('/settings/freemium',          [AdminPlanController::class, 'freemium']);
+    Route::put('/settings/freemium',          [AdminPlanController::class, 'updateFreemium']);
 
     // Subscribers and payments
     Route::get('/subscriptions/summary',              [AdminSubscriptionController::class, 'summary']);

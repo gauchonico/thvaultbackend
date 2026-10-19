@@ -18,6 +18,8 @@ class Plan extends Model
         'max_screens',
         'downloads_allowed',
         'is_popular',
+        'is_active',
+        'features',
         'sort_order',
     ];
 
@@ -25,6 +27,8 @@ class Plan extends Model
         'downloads_allowed' => 'boolean',
         'is_popular' => 'boolean',
         'is_free' => 'boolean',
+        'is_active' => 'boolean',
+        'features' => 'array',
     ];
 
     public function subscriptions()

@@ -9,6 +9,7 @@ class PlanController extends Controller
 {
     public function index()
     {
-        return Plan::orderBy('sort_order')->get();
+        // The plan picker only offers plans admins haven't hidden.
+        return Plan::where('is_active', true)->orderBy('sort_order')->get();
     }
 }

@@ -25,6 +25,9 @@ class PaymentController extends Controller
             'provider' => PaymentService::enabled() ? config('payments.driver') : null,
             'demo'     => PaymentService::simulated(),
             'rental_hours' => config('payments.rental_hours'),
+            // Freemium allowance, for the plan cards ("10 minutes of Premium every month").
+            'preview_seconds' => \App\Models\Setting::previewSeconds(),
+            'preview_reset'   => \App\Models\Setting::previewReset(),
         ]);
     }
 
@@ -60,6 +63,9 @@ class PaymentController extends Controller
             $item = [$show, $data['purchase_type']];
         } else {
             $item = Plan::where('slug', $data['plan_slug'])->firstOrFail();
+            if (!$item->is_active) {
+                return response()->json(['message' => "That plan isn't available any more. Please choose another."], 422);
+            }
             if ($item->is_free) {
                 return response()->json(['message' => 'Freemium is free: choose it without paying.'], 422);
             }

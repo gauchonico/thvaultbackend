@@ -15,7 +15,7 @@ class PreviewUsage extends Model
     {
         $now = now('Africa/Kampala');
 
-        return match (config('content.preview_reset')) {
+        return match (Setting::previewReset()) {
             'day'   => $now->format('Y-m-d'),
             'never' => 'all',
             default => $now->format('Y-m'),
@@ -26,6 +26,6 @@ class PreviewUsage extends Model
     {
         $used = (int) static::where('user_id', $user->id)->where('period', static::currentPeriod())->value('seconds_used');
 
-        return max(0, config('content.preview_seconds') - $used);
+        return max(0, Setting::previewSeconds() - $used);
     }
 }
