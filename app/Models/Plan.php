@@ -13,6 +13,7 @@ class Plan extends Model
         'name',
         'slug',
         'price_ugx',
+        'is_free',
         'resolution',
         'max_screens',
         'downloads_allowed',
@@ -23,6 +24,7 @@ class Plan extends Model
     protected $casts = [
         'downloads_allowed' => 'boolean',
         'is_popular' => 'boolean',
+        'is_free' => 'boolean',
     ];
 
     public function subscriptions()

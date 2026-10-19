@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ReleaseNoteController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminSubscriptionController;
 use App\Http\Controllers\Api\VideoMetaController;
+use App\Http\Controllers\Api\PreviewController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -63,6 +64,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Subscriptions (payment-free for now — a plan pick just activates immediately)
     Route::get('/subscriptions/current', [SubscriptionController::class, 'current']);
     Route::post('/subscriptions',        [SubscriptionController::class, 'store']);
+
+    // Freemium preview allowance on Subscribers content
+    Route::post('/preview/heartbeat', [PreviewController::class, 'heartbeat']);
 
     // Mobile money payments (only live when PAYMENTS_DRIVER isn't 'none')
     Route::post('/payments',             [PaymentController::class, 'store']);

@@ -13,11 +13,24 @@ class SubscriptionController extends Controller
     // the app, or back to /select-plan.
     public function current(Request $request)
     {
-        $subscription = $request->user()->activeSubscription()->with('plan')->first();
+        $user = $request->user();
+        $subscription = $user->activeSubscription()->with('plan')->first();
+
+        // Someone who has chosen a plan before never gets bounced back to the plan
+        // picker: when a paid plan lapses they drop to Freemium automatically.
+        if (!$subscription && $user->subscriptions()->exists() && ($free = Plan::where('is_free', true)->first())) {
+            $subscription = $user->subscriptions()->create([
+                'plan_id' => $free->id, 'status' => 'active', 'starts_at' => now(), 'ends_at' => null,
+            ])->load('plan');
+        }
+
+        $isFree = (bool) $subscription?->plan?->is_free;
 
         return response()->json([
-            'has_active_plan' => (bool) $subscription,
-            'subscription' => $subscription,
+            'has_active_plan'      => (bool) $subscription,
+            'tier'                 => $subscription ? ($isFree ? 'free' : 'paid') : null,
+            'subscription'         => $subscription,
+            'preview_seconds_left' => $isFree ? \App\Models\PreviewUsage::secondsLeft($user) : null,
         ]);
     }
 
@@ -27,12 +40,13 @@ class SubscriptionController extends Controller
             'plan_slug' => ['required', 'exists:plans,slug'],
         ]);
 
-        // Once payments are on, a plan is only activated by a confirmed payment.
-        if (\App\Payments\PaymentService::enabled()) {
+        $plan = Plan::where('slug', $data['plan_slug'])->firstOrFail();
+
+        // Once payments are on, a paid plan is only activated by a confirmed payment.
+        // Freemium never needs one.
+        if (\App\Payments\PaymentService::enabled() && !$plan->is_free) {
             return response()->json(['message' => 'Choose a plan and pay with mobile money to subscribe.'], 409);
         }
-
-        $plan = Plan::where('slug', $data['plan_slug'])->firstOrFail();
         $user = $request->user();
 
         $subscription = DB::transaction(function () use ($user, $plan) {
@@ -41,9 +55,9 @@ class SubscriptionController extends Controller
 
             return $user->subscriptions()->create([
                 'plan_id' => $plan->id,
-                'status' => 'active', // swap to 'pending' once a payment gateway sits in front of this
+                'status' => 'active',
                 'starts_at' => now(),
-                'ends_at' => now()->addMonth(),
+                'ends_at' => $plan->is_free ? null : now()->addMonth(), // Freemium doesn't expire
             ]);
         });
 

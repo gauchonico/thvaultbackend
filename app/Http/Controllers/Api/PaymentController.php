@@ -60,6 +60,9 @@ class PaymentController extends Controller
             $item = [$show, $data['purchase_type']];
         } else {
             $item = Plan::where('slug', $data['plan_slug'])->firstOrFail();
+            if ($item->is_free) {
+                return response()->json(['message' => 'Freemium is free: choose it without paying.'], 422);
+            }
         }
 
         ['payment' => $payment, 'redirect_url' => $redirect] = $this->payments->start($request->user(), $item, $data['method'], $phone);

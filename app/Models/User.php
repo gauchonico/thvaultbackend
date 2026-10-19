@@ -49,4 +49,12 @@ class User extends Authenticatable
         return $this->activeSubscription()->exists();
     }
 
+    /** On a paid plan (Freemium doesn't count) that hasn't lapsed. */
+    public function isPaidSubscriber(): bool
+    {
+        $subscription = $this->activeSubscription()->with('plan')->first();
+
+        return (bool) ($subscription && $subscription->plan && !$subscription->plan->is_free);
+    }
+
 }

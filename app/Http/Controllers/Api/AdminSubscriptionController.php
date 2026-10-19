@@ -27,7 +27,8 @@ class AdminSubscriptionController extends Controller
     public function summary()
     {
         return response()->json([
-            'active'             => $this->live(Subscription::query())->count(),
+            'active'             => $this->live(Subscription::query())->whereHas('plan', fn ($q) => $q->where('is_free', false))->count(),
+            'freemium'           => $this->live(Subscription::query())->whereHas('plan', fn ($q) => $q->where('is_free', true))->count(),
             'expiring_soon'      => $this->live(Subscription::query())
                 ->whereBetween('ends_at', [now(), now()->addDays(self::EXPIRING_DAYS)])->count(),
             'revenue_this_month' => (int) Payment::where('status', 'successful')
@@ -54,7 +55,8 @@ class AdminSubscriptionController extends Controller
             ->orderByDesc('updated_at');
 
         match ($filter) {
-            'active'   => $this->live($query),
+            'active'   => $this->live($query)->whereHas('plan', fn ($q) => $q->where('is_free', false)),
+            'freemium' => $this->live($query)->whereHas('plan', fn ($q) => $q->where('is_free', true)),
             'expiring' => $this->live($query)->whereBetween('ends_at', [now(), now()->addDays(self::EXPIRING_DAYS)]),
             'expired'  => $query->where(fn ($q) => $q->where('status', 'expired')
                 ->orWhere(fn ($q) => $q->where('status', 'active')->where('ends_at', '<=', now()))),

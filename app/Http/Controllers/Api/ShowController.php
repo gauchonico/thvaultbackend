@@ -101,6 +101,7 @@ class ShowController extends Controller
             'channel_id'     => 'nullable|exists:channels,id',
             'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
             'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
+            'access_level'   => 'nullable|in:free,subscribers',
         ]);
 
         // Handle File Uploads
@@ -145,6 +146,7 @@ class ShowController extends Controller
             'channel_id'     => 'nullable|exists:channels,id',
             'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
             'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
+            'access_level'   => 'nullable|in:free,subscribers',
         ]);
 
         $oldPoster   = $show->getRawOriginal('poster');
