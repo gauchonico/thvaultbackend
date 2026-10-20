@@ -41,7 +41,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['brand_name', 'published_at']);
-            $table->fullText(['source_title', 'chunk_content']);
+            // MySQL only: SQLite (used by the test suite) has no full-text indexes.
+            if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+                $table->fullText(['source_title', 'chunk_content']);
+            }
         });
     }
 

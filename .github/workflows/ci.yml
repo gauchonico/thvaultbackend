@@ -1,0 +1,53 @@
+# Checks every pull request (and pushes to main). This only runs tests on GitHub's
+# machines; it does not deploy. Laravel Cloud deploys exactly as before.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Secrets guard and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # A committed .env would publish every key to everyone with repo access.
+      - name: No .env files committed
+        run: |
+          if git ls-files | grep -E '(^|/)\.env(\..+)?$' | grep -v '\.env\.example$'; then
+            echo "::error::A .env file is committed. Remove it (git rm --cached) and rotate every key in it."
+            exit 1
+          fi
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - run: composer validate --no-check-publish
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      # Tests run on an in-memory SQLite database (see phpunit.xml): no secrets
+      # or real services are needed.
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Tests
+        run: php artisan test
