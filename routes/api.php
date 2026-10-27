@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\AdminSubscriptionController;
 use App\Http\Controllers\Api\VideoMetaController;
 use App\Http\Controllers\Api\PreviewController;
 use App\Http\Controllers\Api\AdminPlanController;
+use App\Http\Controllers\Api\PlaybackController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -68,6 +69,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Freemium preview allowance on Subscribers content
     Route::post('/preview/heartbeat', [PreviewController::class, 'heartbeat']);
+
+    // DRM-protected (VdoCipher) episodes: a fresh one-time playback token per play
+    Route::post('/episodes/{episode}/playback', [PlaybackController::class, 'store'])->middleware('throttle:30,1');
 
     // Mobile money payments (only live when PAYMENTS_DRIVER isn't 'none')
     Route::post('/payments',             [PaymentController::class, 'store']);

@@ -46,6 +46,11 @@ return [
         'key' => env('YOUTUBE_API_KEY', env('YOUTUB_API_KEY')),
     ],
 
+    // DRM-protected playback. The secret only ever stays on the server.
+    'vdocipher' => [
+        'secret' => env('VDOCIPHER_API_SECRET'),
+    ],
+
     'gemini' => [
         'key' => env('GOOGLE_API_KEY'),
         'embedding_model' => env('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'),

@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\VdoCipher;
 use Carbon\Carbon;
 use Carbon\CarbonInterval;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Admin episode auto-fill for YouTube links. Runs here, not in the browser, so the
- * YouTube Data API key stays private. (NTV VOD links are looked up directly by the
+ * Admin episode auto-fill for YouTube links and VdoCipher video IDs. Runs here, not in
+ * the browser, so the YouTube Data API key and VdoCipher secret stay private. (NTV VOD links are looked up directly by the
  * admin page — MediaCMS's API is public and CORS-open.)
  */
 class VideoMetaController extends Controller
@@ -19,6 +20,10 @@ class VideoMetaController extends Controller
     public function show(Request $request)
     {
         $data = $request->validate(['url' => 'required|string|max:2048']);
+
+        if ($vdoId = VdoCipher::videoId($data['url'])) {
+            return $this->vdoCipher($vdoId);
+        }
 
         $id = $this->youTubeId($data['url']);
         if (!$id) {
@@ -59,6 +64,40 @@ class VideoMetaController extends Controller
             'airedAt'     => isset($video['snippet']['publishedAt'])
                 ? Carbon::parse($video['snippet']['publishedAt'])->setTimezone('Africa/Kampala')->toDateString()
                 : null,
+        ]);
+    }
+
+    private function vdoCipher(string $id)
+    {
+        if (!VdoCipher::configured()) {
+            return response()->json(['message' => 'VdoCipher is not configured on the server.'], 503);
+        }
+
+        try {
+            $video = app(VdoCipher::class)->video($id);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['message' => "Couldn't reach VdoCipher. Fill the details in by hand."], 502);
+        }
+        if (!$video) {
+            return response()->json(['message' => "That VdoCipher video wasn't found."], 404);
+        }
+
+        // Largest poster; VdoCipher lists them smallest first.
+        $poster = collect($video['posters'] ?? [])->sortByDesc('width')->first()['posterUrl'] ?? ($video['poster'] ?? null);
+        $seconds = (int) ($video['length'] ?? 0);
+
+        return response()->json([
+            // Uploaded file names make poor titles ("Episode 4.mp4").
+            'title'       => isset($video['title']) ? preg_replace('/\.(mp4|mov|mkv|avi|webm)$/i', '', $video['title']) : null,
+            'description' => ($video['description'] ?? '') ?: null,
+            'thumbnail'   => $poster,
+            'duration'    => $seconds ? $this->formatDuration($seconds) : null,
+            'airedAt'     => isset($video['upload_time'])
+                ? Carbon::createFromTimestamp($video['upload_time'], 'Africa/Kampala')->toDateString()
+                : null,
+            // Still encoding: it can be saved now, but won't play until it's ready.
+            'status'      => $video['status'] ?? null,
         ]);
     }
 

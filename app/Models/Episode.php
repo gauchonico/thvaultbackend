@@ -29,6 +29,14 @@ class Episode extends Model
         return Str::startsWith($value, ['http://', 'https://']) ? $value : Storage::disk('public')->url($value);
     }
 
+    // A pasted VdoCipher video ID is stored as "vdocipher:<id>" so every client can
+    // tell which player it needs.
+    public function setVideoUrlAttribute(?string $value): void
+    {
+        $vdoId = \App\Services\VdoCipher::videoId($value);
+        $this->attributes['video_url'] = $vdoId ? "vdocipher:{$vdoId}" : $value;
+    }
+
     public function show(): BelongsTo
     {
         return $this->belongsTo(Show::class);
