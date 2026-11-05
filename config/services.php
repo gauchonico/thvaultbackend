@@ -61,6 +61,10 @@ return [
     // Researcher Portal embeddings/chat provider: 'openai', 'gemini' or 'ollama'.
     'embeddings' => [
         'provider' => env('EMBEDDINGS_PROVIDER', 'openai'),
+        // Size of the search index's vector column. Must match the provider's output
+        // (Gemini as configured: 768, OpenAI text-embedding-3-small: 1536, nomic: 768);
+        // changing it means re-creating the index and re-ingesting.
+        'dimensions' => (int) env('EMBEDDINGS_DIMENSIONS', 768),
     ],
 
     'researcher' => [

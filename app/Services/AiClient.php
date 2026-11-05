@@ -72,6 +72,20 @@ class AiClient
     }
 
     /**
+     * Identifies the vectors this client produces. Vectors from different models
+     * can't be compared, so the search index stores this (hashed with each
+     * passage) and re-embeds anything made by another model.
+     */
+    public function embeddingSignature(): string
+    {
+        return match ($this->provider) {
+            'ollama' => "ollama:{$this->ollamaEmbeddingModel}",
+            'gemini' => "gemini:{$this->geminiEmbeddingModel}:{$this->geminiDimensions}",
+            default  => "openai:{$this->openAiEmbeddingModel}",
+        };
+    }
+
+    /**
      * @param string[] $texts
      * @return array<int, float[]>
      */

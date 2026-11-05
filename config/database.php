@@ -21,6 +21,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Researcher Portal Search Index Connection
+    |--------------------------------------------------------------------------
+    |
+    | The search index lives in its own Postgres + pgvector database so the
+    | app's MySQL never carries embeddings. Tests (and local setups without
+    | pgvector) point this at another connection, e.g. "sqlite", and search
+    | falls back to scoring vectors in PHP.
+    |
+    */
+
+    'search_connection' => env('SEARCH_DB_CONNECTION', 'search'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |
@@ -97,6 +111,21 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ],
+
+        'search' => [
+            'driver' => 'pgsql',
+            'url' => env('SEARCH_DB_URL'),
+            'host' => env('SEARCH_DB_HOST', '127.0.0.1'),
+            'port' => env('SEARCH_DB_PORT', '5432'),
+            'database' => env('SEARCH_DB_DATABASE', 'laravel'),
+            'username' => env('SEARCH_DB_USERNAME', 'root'),
+            'password' => env('SEARCH_DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('SEARCH_DB_SSLMODE', 'prefer'),
         ],
 
         'sqlsrv' => [
