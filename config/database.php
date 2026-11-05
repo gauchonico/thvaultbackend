@@ -27,11 +27,13 @@ return [
     | The search index lives in its own Postgres + pgvector database so the
     | app's MySQL never carries embeddings. Tests (and local setups without
     | pgvector) point this at another connection, e.g. "sqlite", and search
-    | falls back to scoring vectors in PHP.
+    | falls back to scoring vectors in PHP. Leave it unset in production: it
+    | names a connection below, not a driver, so "pgsql" here would send the
+    | index to the app's own database settings.
     |
     */
 
-    'search_connection' => env('SEARCH_DB_CONNECTION', 'search'),
+    'search_connection' => env('SEARCH_CONNECTION_OVERRIDE', 'search'),
 
     /*
     |--------------------------------------------------------------------------
