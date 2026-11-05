@@ -31,6 +31,10 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    // Where ePaper PDFs live. They're streamed through the API after an access
+    // check, so a private bucket/disk works (and is preferable) here.
+    'epaper_disk' => env('EPAPER_DISK', 'public'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

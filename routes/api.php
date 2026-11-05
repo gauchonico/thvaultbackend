@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\VideoMetaController;
 use App\Http\Controllers\Api\PreviewController;
 use App\Http\Controllers\Api\AdminPlanController;
 use App\Http\Controllers\Api\PlaybackController;
+use App\Http\Controllers\Api\EpaperController;
+use App\Http\Controllers\Api\AdminEpaperController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -38,6 +40,11 @@ Route::get('/promo-cards', [PromoCardController::class, 'index']);
 Route::get('/plans', [PlanController::class, 'index']);
 Route::get('/ads/active', [AdController::class, 'active']);
 Route::get('/release-notes/latest', [ReleaseNoteController::class, 'latest']);
+
+// ePaper: the newsstand and edition details are public; the PDF itself needs an account.
+Route::get('/epaper/newsstand',                          [EpaperController::class, 'newsstand']);
+Route::get('/epaper/publications/{publication:slug}',    [EpaperController::class, 'publication']);
+Route::get('/epaper/editions/{edition}',                 [EpaperController::class, 'edition']);
 
 // Payments: public config + the provider's webhook (it can't send our auth token).
 Route::get('/payments/config', [PaymentController::class, 'config']);
@@ -72,6 +79,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // DRM-protected (VdoCipher) episodes: a fresh one-time playback token per play
     Route::post('/episodes/{episode}/playback', [PlaybackController::class, 'store'])->middleware('throttle:30,1');
+
+    // ePaper PDF, streamed after the same Free/Subscribers check as shows
+    Route::get('/epaper/editions/{edition}/file', [EpaperController::class, 'file'])->middleware('throttle:60,1');
 
     // Mobile money payments (only live when PAYMENTS_DRIVER isn't 'none')
     Route::post('/payments',             [PaymentController::class, 'store']);
@@ -151,4 +161,17 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/release-notes',                   [ReleaseNoteController::class, 'store']);
     Route::put('/release-notes/{releaseNote}',      [ReleaseNoteController::class, 'update']);
     Route::delete('/release-notes/{releaseNote}',   [ReleaseNoteController::class, 'destroy']);
+
+    // ePaper titles, editions and chunked PDF uploads
+    Route::get('/epaper/publications',                   [AdminEpaperController::class, 'publications']);
+    Route::post('/epaper/publications',                  [AdminEpaperController::class, 'storePublication']);
+    Route::put('/epaper/publications/{publication}',     [AdminEpaperController::class, 'updatePublication']);
+    Route::delete('/epaper/publications/{publication}',  [AdminEpaperController::class, 'destroyPublication']);
+    Route::get('/epaper/editions',                       [AdminEpaperController::class, 'editions']);
+    Route::post('/epaper/editions',                      [AdminEpaperController::class, 'storeEdition']);
+    Route::put('/epaper/editions/{edition}',             [AdminEpaperController::class, 'updateEdition']);
+    Route::delete('/epaper/editions/{edition}',          [AdminEpaperController::class, 'destroyEdition']);
+    Route::post('/epaper/uploads',                       [AdminEpaperController::class, 'startUpload']);
+    Route::post('/epaper/uploads/{uploadId}/chunks',     [AdminEpaperController::class, 'uploadChunk']);
+    Route::delete('/epaper/uploads/{uploadId}',          [AdminEpaperController::class, 'cancelUpload']);
 });

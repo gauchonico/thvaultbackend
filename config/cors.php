@@ -16,7 +16,8 @@ return [
     ],
     'allowed_origins_patterns' => [],
     'allowed_headers'          => ['*'],
-    'exposed_headers'          => [],
+    // Lets the ePaper reader (pdf.js) fetch PDFs in ranges and show download progress.
+    'exposed_headers'          => ['Accept-Ranges', 'Content-Range', 'Content-Length'],
     'max_age'                  => 0,
     'supports_credentials'     => true,
 ];
