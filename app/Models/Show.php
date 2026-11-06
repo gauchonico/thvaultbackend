@@ -15,7 +15,7 @@ class Show extends Model
         'title', 'description', 'poster', 'backdrop', 'trailer_url',
         'year', 'rating', 'seasons',
         'air_days', 'air_start_time', 'air_end_time',
-        'type', 'channel_id', 'rent_price_ugx', 'buy_price_ugx', 'access_level',
+        'type', 'channel_id', 'partner_id', 'rent_price_ugx', 'buy_price_ugx', 'access_level',
     ];
 
     protected $casts = [
@@ -143,5 +143,10 @@ class Show extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
+    }
+
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class);
     }
 }

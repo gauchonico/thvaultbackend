@@ -13,7 +13,7 @@ class ShowController extends Controller
     public function index(Request $request)
     {
         // Added 'genres' and 'tags' to the eager load
-        $query = Show::with(['episodes', 'genres', 'tags', 'channel']);
+        $query = Show::with(['episodes', 'genres', 'tags', 'channel', 'partner:id,name,slug,logo,type,accent_color']);
 
         if ($request->filled('type')) {
             $query->where('type', $request->type);
@@ -21,6 +21,10 @@ class ShowController extends Controller
 
         if ($request->filled('channel_id')) {
             $query->where('channel_id', $request->channel_id);
+        }
+
+        if ($request->filled('partner_id')) {
+            $query->where('partner_id', $request->partner_id);
         }
 
         if ($request->filled('search')) {
@@ -62,7 +66,7 @@ class ShowController extends Controller
     public function show(Request $request, Show $show)
     {
         // Eager-load everything the detail page needs
-        $show->load(['episodes', 'genres', 'tags', 'channel']);
+        $show->load(['episodes', 'genres', 'tags', 'channel', 'partner:id,name,slug,logo,type,accent_color']);
         Show::applyAccess($show, auth('sanctum')->user());
 
         // Attach progress if logged in (matches your index() behavior)
@@ -99,6 +103,7 @@ class ShowController extends Controller
             'air_end_time'   => 'nullable|date_format:H:i',
             'type'           => 'nullable|in:show,podcast',
             'channel_id'     => 'nullable|exists:channels,id',
+            'partner_id'     => 'nullable|exists:partners,id',
             'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
             'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
             'access_level'   => 'nullable|in:free,subscribers',
@@ -144,6 +149,7 @@ class ShowController extends Controller
             'air_end_time'   => 'nullable|date_format:H:i',
             'type'           => 'nullable|in:show,podcast',
             'channel_id'     => 'nullable|exists:channels,id',
+            'partner_id'     => 'nullable|exists:partners,id',
             'rent_price_ugx' => 'nullable|integer|min:500|max:10000000',
             'buy_price_ugx'  => 'nullable|integer|min:500|max:10000000',
             'access_level'   => 'nullable|in:free,subscribers',
@@ -183,7 +189,8 @@ class ShowController extends Controller
     // The admin form sends an empty field to clear a price; store that as "not for sale".
     private function blankPricesToNull(Request $request): void
     {
-        foreach (['rent_price_ugx', 'buy_price_ugx'] as $field) {
+        // A blank partner unassigns the show; blank prices take it off sale.
+        foreach (['rent_price_ugx', 'buy_price_ugx', 'partner_id'] as $field) {
             if ($request->has($field) && trim((string) $request->input($field)) === '') {
                 $request->merge([$field => null]);
             }

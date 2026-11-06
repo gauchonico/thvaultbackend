@@ -24,6 +24,10 @@ use App\Http\Controllers\Api\AdminPlanController;
 use App\Http\Controllers\Api\PlaybackController;
 use App\Http\Controllers\Api\EpaperController;
 use App\Http\Controllers\Api\AdminEpaperController;
+use App\Http\Controllers\Api\PlayController;
+use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\AdminPartnerController;
+use App\Http\Controllers\Api\AnalyticsController;
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -46,6 +50,13 @@ Route::get('/epaper/newsstand',                          [EpaperController::clas
 Route::get('/epaper/publications/{publication:slug}',    [EpaperController::class, 'publication']);
 Route::get('/epaper/editions/{edition}',                 [EpaperController::class, 'edition']);
 
+// Clubs and creators: hubs are public; following needs an account.
+Route::get('/partners',                   [PartnerController::class, 'index']);
+Route::get('/partners/{partner:slug}',    [PartnerController::class, 'show']);
+
+// Playback heartbeats for view counts and watch time. Public, so signed-out viewers count.
+Route::post('/plays', [PlayController::class, 'heartbeat'])->middleware('throttle:120,1');
+
 // Payments: public config + the provider's webhook (it can't send our auth token).
 Route::get('/payments/config', [PaymentController::class, 'config']);
 Route::match(['get', 'post'], '/payments/notify/{provider}', [PaymentController::class, 'notify']);
@@ -58,6 +69,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me',      [AuthController::class, 'me']);
     Route::put('/me',          [AuthController::class, 'updateProfile']);
     Route::put('/me/password', [AuthController::class, 'updatePassword']);
+
+    // Following clubs and creators
+    Route::get('/me/following',                       [PartnerController::class, 'following']);
+    Route::post('/partners/{partner:slug}/follow',    [PartnerController::class, 'follow']);
+    Route::delete('/partners/{partner:slug}/follow',  [PartnerController::class, 'unfollow']);
 
     // Watch history (continue watching)
     Route::get('/watch-history',            [WatchHistoryController::class, 'index']);
@@ -161,6 +177,16 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/release-notes',                   [ReleaseNoteController::class, 'store']);
     Route::put('/release-notes/{releaseNote}',      [ReleaseNoteController::class, 'update']);
     Route::delete('/release-notes/{releaseNote}',   [ReleaseNoteController::class, 'destroy']);
+
+    // Analytics and partner revenue share
+    Route::get('/analytics',      [AnalyticsController::class, 'index']);
+    Route::get('/revenue-share',  [AnalyticsController::class, 'revenueShare']);
+
+    // Partners: clubs, creators and studios
+    Route::get('/partners',               [AdminPartnerController::class, 'index']);
+    Route::post('/partners',              [AdminPartnerController::class, 'store']);
+    Route::put('/partners/{partner}',     [AdminPartnerController::class, 'update']);
+    Route::delete('/partners/{partner}',  [AdminPartnerController::class, 'destroy']);
 
     // ePaper titles, editions and chunked PDF uploads
     Route::get('/epaper/publications',                   [AdminEpaperController::class, 'publications']);
